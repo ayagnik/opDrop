@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Drop Protocol Tactical Map</title>
+<style>
+  html, body, #map { height: 100%; margin: 0; background:#000; overflow: hidden; }
+  video#bg {
+    position: fixed;
+    top: 50%; left: 50%;
+    min-width: 110%; min-height: 110%;
+    transform: translate(-50%, -50%);
+    opacity: 0.25;
+    filter: blur(2px);
+    z-index: 0;
+  }
+  .pulse-marker {
+    width: 16px; height: 16px;
+    border-radius: 50%;
+    background: #00FF99;
+    box-shadow: 0 0 15px #00FF99;
+  }
+  .pulse-marker::before, .pulse-marker::after {
+    content: "";
+    position: absolute;
+    border: 2px solid #00FF99;
+    border-radius: 50%;
+    width: 100%; height: 100%;
+    left: 0; top: 0;
+    transform: scale(0);
+    opacity: 0.7;
+    animation: pulse 2.5s infinite;
+  }
+  .pulse-marker::after { animation-delay: 1.25s; }
+  @keyframes pulse {
+    0% { transform: scale(0.2); opacity: 1; }
+    70% { transform: scale(2.0); opacity: 0; }
+    100% { transform: scale(2.0); opacity: 0; }
+  }
+</style>
+
+<link rel="stylesheet" href="leaflet.css" />
+<script src="leaflet.js"></script>
+</head>
+
+<body>
+  <video id="bg" autoplay muted loop playsinline>
+    <source src="../assets/globe_bg.mp4" type="video/mp4">
+  </video>
+  <div id="map"></div>
+
+  <script>
+    const map = L.map('map', {zoomControl:false}).setView([20, 0], 2);
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+        subdomains: 'abcd',
+        maxZoom: 19,
+        attribution: '&copy; OpenStreetMap &copy; CartoDB'
+    }).addTo(map);
+
+    let targets = [];
+
+    function clearTargets() {
+      for (const t of targets) map.removeLayer(t);
+      targets = [];
+    }
+
+    function addPulseMarker(latlng, label) {
+      const icon = L.divIcon({
+        className: '',
+        html: '<div class="pulse-marker"></div>',
+        iconSize: [16, 16],
+        iconAnchor: [8, 8]
+      });
+      const marker = L.marker(latlng, {icon}).addTo(map);
+      marker.bindPopup(`<b>${label}</b>`).openPopup();
+      targets.push(marker);
+    }
+
+    // SAFE wrappers (no recursion)
+    function flyToCoords(coords, zoom) {
+      map.flyTo(coords, zoom, {animate:true, duration:1.5});
+    }
+
+    // expose only once
+    if (!window.__dropProtocolBound) {
+      window.clearTargets = clearTargets;
+      window.addPulseMarker = addPulseMarker;
+      window.setView = flyToCoords;
+      window.__dropProtocolBound = true;
+    }
+  </script>
+</body>
+</html>
