@@ -1,93 +1,1093 @@
 <!DOCTYPE html>
 <html>
-<head>
-<meta charset="utf-8">
-<title>Drop Protocol Tactical Map</title>
-<style>
-  html, body, #map { height: 100%; margin: 0; background:#000; overflow: hidden; }
-  video#bg {
-    position: fixed;
-    top: 50%; left: 50%;
-    min-width: 110%; min-height: 110%;
-    transform: translate(-50%, -50%);
-    opacity: 0.25;
-    filter: blur(2px);
-    z-index: 0;
-  }
-  .pulse-marker {
-    width: 16px; height: 16px;
-    border-radius: 50%;
-    background: #00FF99;
-    box-shadow: 0 0 15px #00FF99;
-  }
-  .pulse-marker::before, .pulse-marker::after {
-    content: "";
-    position: absolute;
-    border: 2px solid #00FF99;
-    border-radius: 50%;
-    width: 100%; height: 100%;
-    left: 0; top: 0;
-    transform: scale(0);
-    opacity: 0.7;
-    animation: pulse 2.5s infinite;
-  }
-  .pulse-marker::after { animation-delay: 1.25s; }
-  @keyframes pulse {
-    0% { transform: scale(0.2); opacity: 1; }
-    70% { transform: scale(2.0); opacity: 0; }
-    100% { transform: scale(2.0); opacity: 0; }
-  }
-</style>
 
-<link rel="stylesheet" href="leaflet.css" />
-<script src="leaflet.js"></script>
+<head>
+  <meta charset="utf-8">
+  <title>Drop Protocol Tactical World Map</title>
+  <style>
+    html,
+    body {
+      height: 100%;
+      margin: 0;
+      background: #020810;
+      overflow: hidden;
+      font-family: "Courier New", Courier, monospace;
+    }
+
+    /* Subtle animated globe video in the deep background */
+    video#bg {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      min-width: 110%;
+      min-height: 110%;
+      transform: translate(-50%, -50%);
+      opacity: 0.18;
+      filter: blur(1px) hue-rotate(15deg);
+      z-index: 0;
+      pointer-events: none;
+    }
+
+    /* Tactical grid + radar sweep background layer */
+    .tactical-grid {
+      position: fixed;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(0, 255, 255, 0.05) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0, 255, 255, 0.05) 1px, transparent 1px);
+      background-size: 48px 48px;
+      z-index: 1;
+      pointer-events: none;
+    }
+
+    /* Continuous horizontal scanline */
+    .scanline {
+      position: fixed;
+      left: 0;
+      right: 0;
+      height: 3px;
+      background: linear-gradient(90deg, transparent, rgba(0, 255, 204, 0.45), transparent);
+      box-shadow: 0 0 12px rgba(0, 255, 204, 0.5);
+      z-index: 4;
+      pointer-events: none;
+      animation: scanVertical 6s linear infinite;
+    }
+
+    @keyframes scanVertical {
+      0% {
+        top: -5%;
+        opacity: 0;
+      }
+
+      10% {
+        opacity: 0.85;
+      }
+
+      90% {
+        opacity: 0.85;
+      }
+
+      100% {
+        top: 105%;
+        opacity: 0;
+      }
+    }
+
+    /* Leaflet map container — transparent so background & grid shine through */
+    #map {
+      position: relative;
+      height: 100%;
+      width: 100%;
+      background: transparent !important;
+      z-index: 2;
+    }
+
+    /* HUD corner brackets & status overlay during brief scan animation */
+    #hud-scan-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 5;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.3s ease;
+    }
+
+    #hud-scan-overlay.active {
+      opacity: 1;
+    }
+
+    .crosshair-v {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      width: 1px;
+      background: rgba(0, 255, 153, 0.55);
+      box-shadow: 0 0 8px #00FF99;
+      left: 50%;
+      animation: sweepX 1.2s ease-in-out infinite alternate;
+    }
+
+    .crosshair-h {
+      position: absolute;
+      left: 0;
+      right: 0;
+      height: 1px;
+      background: rgba(0, 255, 153, 0.55);
+      box-shadow: 0 0 8px #00FF99;
+      top: 50%;
+      animation: sweepY 0.9s ease-in-out infinite alternate;
+    }
+
+    .scan-ring {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 180px;
+      height: 180px;
+      margin-left: -90px;
+      margin-top: -90px;
+      border: 2px dashed rgba(0, 255, 153, 0.7);
+      border-radius: 50%;
+      box-shadow: 0 0 25px rgba(0, 255, 153, 0.25), inset 0 0 25px rgba(0, 255, 153, 0.15);
+      animation: spinRing 2.4s linear infinite;
+    }
+
+    @keyframes sweepX {
+      0% {
+        left: 22%;
+      }
+
+      100% {
+        left: 78%;
+      }
+    }
+
+    @keyframes sweepY {
+      0% {
+        top: 25%;
+      }
+
+      100% {
+        top: 75%;
+      }
+    }
+
+    @keyframes spinRing {
+      0% {
+        transform: rotate(0deg) scale(0.85);
+      }
+
+      50% {
+        transform: rotate(180deg) scale(1.15);
+      }
+
+      100% {
+        transform: rotate(360deg) scale(0.85);
+      }
+    }
+
+    /* Pulsing neon target marker on base */
+    .pulse-marker {
+      position: relative;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: #00FF99;
+      box-shadow: 0 0 18px #00FF99, 0 0 32px #00FFFF;
+    }
+
+    .pulse-marker::before,
+    .pulse-marker::after {
+      content: "";
+      position: absolute;
+      border: 2px solid #00FF99;
+      border-radius: 50%;
+      width: 100%;
+      height: 100%;
+      left: -2px;
+      top: -2px;
+      transform: scale(0.2);
+      opacity: 0.85;
+      animation: pulse 2.2s infinite;
+    }
+
+    .pulse-marker::after {
+      border-color: #00FFFF;
+      animation-delay: 1.1s;
+    }
+
+    /* Decoy warning marker */
+    .decoy-marker {
+      position: relative;
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      background: #FF3344;
+      box-shadow: 0 0 22px #FF3344, 0 0 40px #FFAA00;
+    }
+
+    .decoy-marker::before {
+      content: "";
+      position: absolute;
+      border: 2px solid #FF3344;
+      border-radius: 50%;
+      width: 100%;
+      height: 100%;
+      left: -2px;
+      top: -2px;
+      animation: pulse 0.9s infinite;
+    }
+
+    /* Persistent pin for previously revealed officers */
+    .persistent-pin {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: #00E5FF;
+      border: 2px solid #00FF99;
+      box-shadow: 0 0 10px #00E5FF;
+    }
+
+    @keyframes pulse {
+      0% {
+        transform: scale(0.3);
+        opacity: 1;
+      }
+
+      80% {
+        transform: scale(3.2);
+        opacity: 0;
+      }
+
+      100% {
+        transform: scale(3.2);
+        opacity: 0;
+      }
+    }
+
+    /* Dark tactical popup styling */
+    .leaflet-popup-content-wrapper {
+      background: rgba(0, 20, 32, 0.92);
+      color: #00FF99;
+      border: 1px solid #00FFFF;
+      border-radius: 6px;
+      box-shadow: 0 0 15px rgba(0, 255, 255, 0.4);
+      font-family: "Courier New", Courier, monospace;
+      font-size: 14px;
+      letter-spacing: 0.5px;
+    }
+
+    .leaflet-popup-tip {
+      background: #00FFFF;
+    }
+
+    /* Top Unit & Bottom Assignment HUD Banners inside map viewport */
+    .hud-banner {
+      position: fixed;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 1000;
+      pointer-events: none;
+      text-align: center;
+      font-family: "Courier New", Courier, monospace;
+      font-weight: bold;
+      opacity: 0;
+      transition: opacity 0.45s cubic-bezier(0.16, 1, 0.3, 1), transform 0.45s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    #hud-unit-banner {
+      top: 18px;
+      width: min(820px, 78vw);
+      background: rgba(0, 14, 24, 0.86);
+      color: #00FFFF;
+      border: 1px solid #0099CC;
+      box-shadow: 0 0 20px rgba(0, 255, 255, 0.25);
+      padding: 12px 20px;
+      border-radius: 8px;
+      font-size: 22px;
+      letter-spacing: 1px;
+      transform: translate(-50%, -25px);
+    }
+
+    #hud-unit-banner.visible {
+      opacity: 1;
+      transform: translate(-50%, 0);
+    }
+
+    #hud-unit-banner.roulette {
+      color: #FFCC00;
+      border-color: #FFB300;
+      box-shadow: 0 0 22px rgba(255, 179, 0, 0.45);
+    }
+
+    #hud-assign-banner {
+      bottom: 18px;
+      width: min(980px, 86vw);
+      background: rgba(0, 16, 12, 0.88);
+      color: #00FF99;
+      border: 1px solid #00CC77;
+      box-shadow: 0 0 24px rgba(0, 255, 153, 0.3);
+      padding: 15px 24px;
+      border-radius: 10px;
+      font-size: 24px;
+      letter-spacing: 1px;
+      transform: translate(-50%, 25px);
+    }
+
+    #hud-assign-banner.visible {
+      opacity: 1;
+      transform: translate(-50%, 0);
+    }
+
+    /* Fake-out Decoy Warning Banner */
+    #hud-decoy-banner {
+      top: 24px;
+      width: min(900px, 84vw);
+      background: rgba(40, 4, 8, 0.92);
+      color: #FF4455;
+      border: 2px solid #FF3344;
+      box-shadow: 0 0 30px rgba(255, 51, 68, 0.5);
+      padding: 14px 22px;
+      border-radius: 8px;
+      font-size: 21px;
+      letter-spacing: 1.2px;
+      transform: translate(-50%, -25px);
+    }
+
+    #hud-decoy-banner.visible {
+      opacity: 1;
+      transform: translate(-50%, 0);
+      animation: flashWarning 0.55s ease-in-out infinite alternate;
+    }
+
+    @keyframes flashWarning {
+      0% {
+        border-color: #FF3344;
+        color: #FF5566;
+      }
+
+      100% {
+        border-color: #FFAA00;
+        color: #FFCC00;
+      }
+    }
+
+    /* Centered Tactical Hint Card Overlay (positioned near bottom-center so narrowed map states stay visible above) */
+    #hud-hint-card {
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translate(-50%, 20px) scale(0.96);
+      width: min(840px, 86vw);
+      background: rgba(2, 16, 26, 0.90);
+      border: 2px solid #00FFFF;
+      border-radius: 12px;
+      box-shadow: 0 0 35px rgba(0, 255, 255, 0.3), inset 0 0 25px rgba(0, 255, 153, 0.08);
+      padding: 20px 30px;
+      z-index: 1100;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.3s ease, transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    #hud-hint-card.visible {
+      opacity: 1;
+      transform: translate(-50%, 0) scale(1);
+    }
+
+    .hint-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid rgba(0, 255, 255, 0.35);
+      padding-bottom: 10px;
+      margin-bottom: 14px;
+      font-size: 14px;
+      color: #7EE6FF;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+    }
+
+    .hint-badge {
+      background: rgba(255, 179, 0, 0.16);
+      color: #FFCC00;
+      border: 1px solid #FFB300;
+      padding: 4px 12px;
+      border-radius: 4px;
+      font-weight: bold;
+      font-size: 13px;
+    }
+
+    .hint-body {
+      color: #FFFFFF;
+      font-size: 20px;
+      line-height: 1.45;
+      text-align: center;
+      padding: 8px 6px;
+      min-height: 58px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-shadow: 0 0 10px rgba(0, 255, 255, 0.25);
+    }
+
+    .hint-footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 14px;
+    }
+
+    .hint-sector-count {
+      font-size: 12px;
+      color: #FFB300;
+      letter-spacing: 1px;
+    }
+
+    .hint-pips {
+      display: flex;
+      justify-content: center;
+      gap: 10px;
+    }
+
+    .hint-pip {
+      width: 36px;
+      height: 6px;
+      border-radius: 3px;
+      background: rgba(0, 255, 255, 0.2);
+      border: 1px solid rgba(0, 255, 255, 0.4);
+    }
+
+    .hint-pip.active {
+      background: #00FF99;
+      border-color: #00FF99;
+      box-shadow: 0 0 10px #00FF99;
+    }
+
+    /* Offline tactical reference city labels */
+    .ref-city-label {
+      color: rgba(0, 229, 255, 0.72);
+      font-family: "Courier New", Courier, monospace;
+      font-size: 11px;
+      font-weight: bold;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      text-shadow: 0 0 6px #001824, 0 0 3px #000;
+      white-space: nowrap;
+      pointer-events: none;
+    }
+
+    .ref-city-dot {
+      display: inline-block;
+      width: 5px;
+      height: 5px;
+      background: rgba(0, 229, 255, 0.75);
+      border-radius: 50%;
+      margin-right: 5px;
+      vertical-align: middle;
+    }
+
+    /* Fullscreen Class Summary Modal Overlay */
+    #hud-summary-modal {
+      position: fixed;
+      inset: 28px;
+      background: rgba(2, 12, 20, 0.94);
+      border: 2px solid #00FFFF;
+      border-radius: 12px;
+      box-shadow: 0 0 40px rgba(0, 255, 255, 0.35);
+      z-index: 2000;
+      padding: 24px 32px;
+      color: #E0FFFF;
+      overflow-y: auto;
+      display: none;
+    }
+
+    #hud-summary-modal.visible {
+      display: block;
+    }
+
+    .summary-title {
+      text-align: center;
+      color: #00FF99;
+      font-size: 26px;
+      font-weight: bold;
+      letter-spacing: 2px;
+      border-bottom: 1px solid #005566;
+      padding-bottom: 12px;
+      margin-bottom: 20px;
+    }
+
+    .summary-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 18px;
+    }
+
+    .summary-base-card {
+      background: rgba(0, 28, 42, 0.75);
+      border: 1px solid #0088AA;
+      border-radius: 8px;
+      padding: 14px 18px;
+    }
+
+    .summary-base-title {
+      color: #00FFFF;
+      font-size: 18px;
+      font-weight: bold;
+      border-bottom: 1px solid rgba(0, 255, 255, 0.25);
+      padding-bottom: 8px;
+      margin-bottom: 10px;
+    }
+
+    .summary-item {
+      padding: 6px 0;
+      border-bottom: 1px dashed rgba(0, 255, 255, 0.12);
+      font-size: 14px;
+    }
+
+    .summary-officer {
+      color: #00FF99;
+      font-weight: bold;
+    }
+
+    .summary-unit {
+      color: #99E6FF;
+      font-size: 12px;
+      margin-top: 2px;
+    }
+  </style>
+
+  <link rel="stylesheet" href="leaflet.css" />
+  <script src="leaflet.js"></script>
+  <script src="world_outlines.js"></script>
 </head>
 
 <body>
   <video id="bg" autoplay muted loop playsinline>
     <source src="../assets/globe_bg.mp4" type="video/mp4">
   </video>
+  <div class="tactical-grid"></div>
+  <div class="scanline"></div>
+
+  <!-- Brief target-acquisition HUD animation overlay -->
+  <div id="hud-scan-overlay">
+    <div class="crosshair-v"></div>
+    <div class="crosshair-h"></div>
+    <div class="scan-ring"></div>
+  </div>
+
+  <!-- Slide-in Unit, Assignment, and Decoy HUD banners -->
+  <div id="hud-unit-banner" class="hud-banner"></div>
+  <div id="hud-assign-banner" class="hud-banner"></div>
+  <div id="hud-decoy-banner" class="hud-banner"></div>
+
+  <!-- Tactical Hint Card -->
+  <div id="hud-hint-card">
+    <div class="hint-header">
+      <span id="hint-officer-label">CLASSIFIED LOCATION INTEL</span>
+      <span id="hint-counter-badge" class="hint-badge">HINT 1 OF 4</span>
+    </div>
+    <div id="hint-text-body" class="hint-body"></div>
+    <div class="hint-footer">
+      <span id="hint-sector-status" class="hint-sector-count">NARROWING CANDIDATE SECTORS...</span>
+      <div id="hint-pips-row" class="hint-pips"></div>
+    </div>
+  </div>
+
+  <!-- Full-screen Class Drop Summary Overlay -->
+  <div id="hud-summary-modal">
+    <div class="summary-title">OPERATION DROP PROTOCOL — CLASS ROSTER SUMMARY</div>
+    <div id="summary-grid-container" class="summary-grid"></div>
+  </div>
+
   <div id="map"></div>
 
   <script>
-    const map = L.map('map', {zoomControl:false}).setView([20, 0], 2);
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-        subdomains: 'abcd',
-        maxZoom: 19,
-        attribution: '&copy; OpenStreetMap &copy; CartoDB'
-    }).addTo(map);
+    var WORLD_CENTER = [22, -35];
+    var WORLD_ZOOM = 2.3;
+    var map = null;
+    var worldLayer = null;
+    var statesLayer = null;
+    var idleDriftActive = true;
+    var driftAngle = 0;
+    var targets = [];
+    var persistentPins = [];
+    var hawaiiRing = null;
+    var scanInterval = null;
+    var rouletteInterval = null;
+    var rouletteTimeout = null;
 
-    let targets = [];
+    function safeFlyTo(coords, zoom, duration) {
+      if (!map) return;
+      try {
+        var sz = map.getSize();
+        if (!sz || sz.x <= 0 || sz.y <= 0) {
+          map.invalidateSize();
+          sz = map.getSize();
+        }
+        if (sz && sz.x > 0 &&  sz.y > 0) {
+          map.flyTo(coords, zoom, { animate: true, duration: duration || 1.5 });
+        } else {
+          map.setView(coords, zoom, { animate: false });
+        }
+      } catch (e) {
+        try { map.setView(coords, zoom, { animate: false }); } catch (_) {}
+      }
+    }
+
+    if (typeof window.L !== 'undefined') {
+      map = L.map('map', {
+        zoomControl: false,
+        attributionControl: false,
+        zoomSnap: 0.1,
+        worldCopyJump: true
+      }).setView(WORLD_CENTER, WORLD_ZOOM);
+
+      var lineStyle = {
+        color: '#00bcd4',
+        weight: 0.6,
+        opacity: 0.18,
+        dashArray: '4, 6',
+        interactive: false
+      };
+      for (var lat = -60; lat <= 75; lat += 15) {
+        L.polyline([[lat, -360], [lat, 360]], lineStyle).addTo(map);
+      }
+      for (var lon = -360; lon <= 360; lon += 15) {
+        L.polyline([[-80, lon], [80, lon]], lineStyle).addTo(map);
+      }
+
+      if (window.WORLD_GEOJSON) {
+        worldLayer = L.geoJSON(window.WORLD_GEOJSON, {
+          style: function() {
+            return {
+              color: '#00E5FF',
+              weight: 1.4,
+              opacity: 0.85,
+              fillColor: '#002B3D',
+              fillOpacity: 0.42
+            };
+          }
+        }).addTo(map);
+      }
+
+      if (window.US_STATES_GEOJSON) {
+        statesLayer = L.geoJSON(window.US_STATES_GEOJSON, {
+          style: function() {
+            return {
+              color: '#00FFCC',
+              weight: 1.1,
+              opacity: 0.7,
+              fillColor: '#003847',
+              fillOpacity: 0.25
+            };
+          }
+        }).addTo(map);
+      }
+
+      // Offline Reference Cities Layer (visible when zoomed in >= 5)
+      var OFFLINE_CITIES = [
+        { name: "BALTIMORE, MD", coords: [39.2904, -76.6122] },
+        { name: "ANNAPOLIS, MD", coords: [38.9784, -76.4922] },
+        { name: "WASHINGTON, D.C.", coords: [38.9072, -77.0369] },
+        { name: "FREDERICK, MD", coords: [39.4143, -77.4105] },
+        { name: "AUGUSTA, GA", coords: [33.4735, -82.0105] },
+        { name: "ATLANTA, GA", coords: [33.7490, -84.3880] },
+        { name: "SAVANNAH, GA", coords: [32.0809, -81.0912] },
+        { name: "MACON, GA", coords: [32.8407, -83.6324] },
+        { name: "COLUMBIA, SC", coords: [34.0007, -81.0348] },
+        { name: "SAN ANTONIO, TX", coords: [29.4241, -98.4936] },
+        { name: "AUSTIN, TX", coords: [30.2672, -97.7431] },
+        { name: "HOUSTON, TX", coords: [29.7604, -95.3698] },
+        { name: "CORPUS CHRISTI, TX", coords: [27.8006, -97.3964] },
+        { name: "DALLAS, TX", coords: [32.7767, -96.7970] },
+        { name: "HONOLULU, HI", coords: [21.3069, -157.8583] },
+        { name: "PEARL CITY, HI", coords: [21.3972, -157.9733] },
+        { name: "KAILUA, HI", coords: [21.4022, -157.7394] },
+        { name: "HILO, HI", coords: [19.7241, -155.0868] },
+        { name: "BILOXI, MS", coords: [30.3960, -88.8853] },
+        { name: "PENSACOLA, FL", coords: [30.4213, -87.2169] }
+      ];
+
+      var cityMarkersGroup = L.layerGroup();
+      for (var c = 0; c < OFFLINE_CITIES.length; c++) {
+        var city = OFFLINE_CITIES[c];
+        var cityIcon = L.divIcon({
+          className: 'ref-city-label',
+          html: '<span class="ref-city-dot"></span>' + city.name,
+          iconSize: [140, 16],
+          iconAnchor: [4, 8]
+        });
+        L.marker(city.coords, { icon: cityIcon, interactive: false }).addTo(cityMarkersGroup);
+      }
+
+      map.on('zoomend', function() {
+        if (map.getZoom() >= 5.2) {
+          if (!map.hasLayer(cityMarkersGroup)) map.addLayer(cityMarkersGroup);
+        } else {
+          if (map.hasLayer(cityMarkersGroup)) map.removeLayer(cityMarkersGroup);
+        }
+      });
+
+      setInterval(function() {
+        if (!idleDriftActive || !map) return;
+        var sz = map.getSize();
+        if (!sz || sz.x <= 0 || sz.y <= 0) return;
+        driftAngle += 0.025;
+        var lonOffset = Math.sin(driftAngle) * 18;
+        var latOffset = Math.cos(driftAngle * 0.7) * 4;
+        map.panTo([WORLD_CENTER[0] + latOffset, WORLD_CENTER[1] + lonOffset], {
+          animate: true,
+          duration: 1.0,
+          easeLinearity: 1.0
+        });
+      }, 1000);
+    }
+
+    function hideHudBanners() {
+      if (rouletteInterval) {
+        clearInterval(rouletteInterval);
+        rouletteInterval = null;
+      }
+      if (rouletteTimeout) {
+        clearTimeout(rouletteTimeout);
+        rouletteTimeout = null;
+      }
+      var u = document.getElementById('hud-unit-banner');
+      var a = document.getElementById('hud-assign-banner');
+      var d = document.getElementById('hud-decoy-banner');
+      if (u) {
+        u.classList.remove('visible');
+        u.classList.remove('roulette');
+      }
+      if (a) a.classList.remove('visible');
+      if (d) d.classList.remove('visible');
+    }
+
+    function hideHintCard() {
+      var card = document.getElementById('hud-hint-card');
+      if (card) card.classList.remove('visible');
+      if (map && hawaiiRing) {
+        map.removeLayer(hawaiiRing);
+        hawaiiRing = null;
+      }
+    }
+
+    function highlightStatesByNames(namesList, colorHex, fillOpacity) {
+      if (!statesLayer) return;
+      statesLayer.resetStyle();
+      if (map && hawaiiRing) {
+        map.removeLayer(hawaiiRing);
+        hawaiiRing = null;
+      }
+      if (!namesList || !namesList.length) return;
+      var lowerSet = {};
+      for (var i = 0; i < namesList.length; i++) {
+        lowerSet[namesList[i].toLowerCase()] = true;
+      }
+      var layers = statesLayer.getLayers();
+      for (var j = 0; j < layers.length; j++) {
+        var lyr = layers[j];
+        var stName = (lyr.feature && lyr.feature.properties && lyr.feature.properties.name) || '';
+        if (lowerSet[stName.toLowerCase()] && lyr.setStyle) {
+          lyr.setStyle({
+            color: colorHex || '#FFB300',
+            weight: 2.6,
+            opacity: 1.0,
+            fillColor: colorHex || '#FFB300',
+            fillOpacity: fillOpacity || 0.45
+          });
+        }
+      }
+      // Add a glowing sector ring around Hawaii during wide-zoom hint narrowing so its islands stand out
+      if (lowerSet['hawaii'] && colorHex === '#FFB300' && map && typeof window.L !== 'undefined') {
+        hawaiiRing = L.circleMarker([20.8, -157.0], {
+          radius: 22,
+          color: colorHex || '#FFB300',
+          weight: 2.2,
+          opacity: 0.95,
+          fillColor: colorHex || '#FFB300',
+          fillOpacity: 0.20,
+          dashArray: '4, 4',
+          interactive: false
+        }).addTo(map);
+      }
+    }
+
+    function showHintCard(officerName, hintNumber, totalHints, hintText, candidateStates) {
+      idleDriftActive = false;
+      hideHudBanners();
+      var card = document.getElementById('hud-hint-card');
+      var officerEl = document.getElementById('hint-officer-label');
+      var badgeEl = document.getElementById('hint-counter-badge');
+      var bodyEl = document.getElementById('hint-text-body');
+      var sectorEl = document.getElementById('hint-sector-status');
+      var pipsEl = document.getElementById('hint-pips-row');
+      if (!card) return;
+
+      if (officerEl) officerEl.textContent = 'INTEL CLUE // ' + officerName;
+      if (badgeEl) badgeEl.textContent = 'HINT ' + hintNumber + ' OF ' + totalHints;
+      if (bodyEl) bodyEl.textContent = hintText;
+
+      if (candidateStates && candidateStates.length) {
+        highlightStatesByNames(candidateStates, '#FFB300', 0.42);
+        if (sectorEl) {
+          if (candidateStates.length <= 6) {
+            sectorEl.textContent = 'CANDIDATE SECTORS REMAINING: ' + candidateStates.length + ' (' + candidateStates.join(', ').toUpperCase() + ')';
+          } else {
+            sectorEl.textContent = 'CANDIDATE SECTORS REMAINING: ' + candidateStates.length + ' ACTIVE REGIONS HIGHLIGHTED';
+          }
+        }
+        // Frame both Hawaii (-158) and the US East Coast (-76) simultaneously during all 4 hints
+        if (hintNumber === 1) {
+          safeFlyTo([31, -115], 2.55, 1.1);
+        } else if (hintNumber === 2) {
+          safeFlyTo([31, -116], 2.7, 1.1);
+        } else if (hintNumber === 3) {
+          safeFlyTo([31, -116], 2.8, 1.0);
+        } else {
+          safeFlyTo([31, -116], 2.85, 1.0);
+        }
+      } else if (sectorEl) {
+        sectorEl.textContent = 'ANALYZING REGIONAL TELEMETRY...';
+      }
+
+      if (pipsEl) {
+        pipsEl.innerHTML = '';
+        for (var i = 1; i <= totalHints; i++) {
+          var pip = document.createElement('div');
+          pip.className = 'hint-pip' + (i <= hintNumber ? ' active' : '');
+          pipsEl.appendChild(pip);
+        }
+      }
+      card.classList.remove('visible');
+      void card.offsetWidth;
+      card.classList.add('visible');
+    }
+
+    function showHudBanners(unitText, assignText, candidateUnits) {
+      if (rouletteInterval) {
+        clearInterval(rouletteInterval);
+        rouletteInterval = null;
+      }
+      if (rouletteTimeout) {
+        clearTimeout(rouletteTimeout);
+        rouletteTimeout = null;
+      }
+      var u = document.getElementById('hud-unit-banner');
+      var a = document.getElementById('hud-assign-banner');
+      var d = document.getElementById('hud-decoy-banner');
+      if (d) d.classList.remove('visible');
+
+      // Stage 1: Reveal Base Assignment Banner immediately
+      if (a) {
+        if (assignText) {
+          a.textContent = assignText;
+          a.classList.add('visible');
+        } else {
+          a.classList.remove('visible');
+        }
+      }
+
+      // Stage 2: Squadron Roulette -> Lock in Unit Assignment Banner
+      if (u) {
+        if (!unitText) {
+          u.classList.remove('visible');
+          u.classList.remove('roulette');
+          return;
+        }
+        var pool = (candidateUnits && candidateUnits.length > 1) ? candidateUnits : null;
+        if (pool) {
+          var rIdx = 0;
+          u.classList.add('roulette');
+          u.textContent = 'SELECTING SQUADRON:  ' + pool[0].toUpperCase() + ' ...';
+          u.classList.add('visible');
+          rouletteInterval = setInterval(function() {
+            rIdx = (rIdx + 1) % pool.length;
+            u.textContent = 'SELECTING SQUADRON:  ' + pool[rIdx].toUpperCase() + ' ...';
+          }, 135);
+          rouletteTimeout = setTimeout(function() {
+            if (rouletteInterval) {
+              clearInterval(rouletteInterval);
+              rouletteInterval = null;
+            }
+            u.classList.remove('roulette');
+            u.textContent = unitText;
+          }, 1500);
+        } else {
+          u.classList.remove('roulette');
+          u.textContent = unitText;
+          u.classList.add('visible');
+        }
+      }
+    }
+
+    function triggerDecoyBounce(decoyCoords, decoyName) {
+      idleDriftActive = false;
+      if (scanInterval) {
+        clearInterval(scanInterval);
+        scanInterval = null;
+      }
+      hideHudBanners();
+      hideHintCard();
+
+      var hud = document.getElementById('hud-scan-overlay');
+      if (hud) hud.classList.remove('active');
+
+      safeFlyTo(decoyCoords, 6.2, 1.4);
+
+      if (map && typeof window.L !== 'undefined') {
+        var decoyIcon = L.divIcon({
+          className: '',
+          html: '<div class="decoy-marker"></div>',
+          iconSize: [20, 20],
+          iconAnchor: [10, 10]
+        });
+        var dm = L.marker(decoyCoords, { icon: decoyIcon }).addTo(map);
+        dm.bindPopup('<b>⚠ FALSE TELEMETRY: ' + decoyName + '</b>').openPopup();
+        targets.push(dm);
+      }
+
+      var d = document.getElementById('hud-decoy-banner');
+      if (d) {
+        d.textContent = '⚠ [SIGNAL ANOMALY] FALSE LOCK AT ' + decoyName.toUpperCase() + ' — RE-ROUTING...';
+        d.classList.add('visible');
+      }
+    }
 
     function clearTargets() {
-      for (const t of targets) map.removeLayer(t);
+      if (map && targets && targets.length) {
+        for (var i = 0; i < targets.length; i++) {
+          map.removeLayer(targets[i]);
+        }
+      }
       targets = [];
+      if (statesLayer) {
+        statesLayer.resetStyle();
+      }
+      hideHudBanners();
+      hideHintCard();
     }
 
-    function addPulseMarker(latlng, label) {
-      const icon = L.divIcon({
+    function clearAllPins() {
+      clearTargets();
+      if (map && persistentPins && persistentPins.length) {
+        for (var i = 0; i < persistentPins.length; i++) {
+          map.removeLayer(persistentPins[i]);
+        }
+      }
+      persistentPins = [];
+    }
+
+    function resetToWorld() {
+      clearTargets();
+      var hud = document.getElementById('hud-scan-overlay');
+      if (hud) hud.classList.remove('active');
+      if (scanInterval) {
+        clearInterval(scanInterval);
+        scanInterval = null;
+      }
+      idleDriftActive = true;
+      safeFlyTo(WORLD_CENTER, WORLD_ZOOM, 1.2);
+    }
+
+    function startTargetScan(targetCoords) {
+      idleDriftActive = false;
+      clearTargets();
+
+      var hud = document.getElementById('hud-scan-overlay');
+      if (hud) hud.classList.add('active');
+
+      safeFlyTo([24, -50], 2.4, 0.9);
+
+      if (statesLayer) {
+        var layers = statesLayer.getLayers();
+        if (scanInterval) clearInterval(scanInterval);
+        scanInterval = setInterval(function() {
+          statesLayer.resetStyle();
+          for (var i = 0; i < 4; i++) {
+            var randLayer = layers[Math.floor(Math.random() * layers.length)];
+            if (randLayer && randLayer.setStyle) {
+              randLayer.setStyle({
+                color: '#00FF99',
+                weight: 2.2,
+                fillColor: '#00FF99',
+                fillOpacity: 0.35
+              });
+            }
+          }
+        }, 220);
+      }
+    }
+
+    function addPulseMarker(latlng, label, stateName, officerBrief) {
+      if (!map || typeof window.L === 'undefined') return;
+
+      if (stateName) {
+        highlightStatesByNames([stateName], '#00FF99', 0.32);
+      }
+
+      var icon = L.divIcon({
         className: '',
         html: '<div class="pulse-marker"></div>',
-        iconSize: [16, 16],
-        iconAnchor: [8, 8]
+        iconSize: [18, 18],
+        iconAnchor: [9, 9]
       });
-      const marker = L.marker(latlng, {icon}).addTo(map);
-      marker.bindPopup(`<b>${label}</b>`).openPopup();
+      var marker = L.marker(latlng, { icon: icon }).addTo(map);
+      marker.bindPopup('<b>TARGET BASE: ' + label + '</b>').openPopup();
       targets.push(marker);
+
+      var ring = L.circleMarker(latlng, {
+        radius: 26,
+        color: '#00FFFF',
+        weight: 1.5,
+        opacity: 0.75,
+        fillOpacity: 0.08,
+        dashArray: '5, 5'
+      }).addTo(map);
+      targets.push(ring);
+
+      // Add a persistent pin slightly offset by count so multiple people at the same base can be seen
+      var jitter = (persistentPins.length % 7) * 0.008;
+      var pIcon = L.divIcon({
+        className: '',
+        html: '<div class="persistent-pin"></div>',
+        iconSize: [10, 10],
+        iconAnchor: [5, 5]
+      });
+      var pMarker = L.marker([latlng[0] + jitter, latlng[1] - jitter], { icon: pIcon }).addTo(map);
+      if (officerBrief) {
+        pMarker.bindTooltip(officerBrief, { direction: 'top' });
+      }
+      persistentPins.push(pMarker);
     }
 
-    // SAFE wrappers (no recursion)
     function flyToCoords(coords, zoom) {
-      map.flyTo(coords, zoom, {animate:true, duration:1.5});
+      idleDriftActive = false;
+      if (scanInterval) {
+        clearInterval(scanInterval);
+        scanInterval = null;
+      }
+      if (statesLayer) {
+        statesLayer.resetStyle();
+      }
+      var hud = document.getElementById('hud-scan-overlay');
+      if (hud) hud.classList.remove('active');
+      safeFlyTo(coords, zoom || 7, 1.8);
     }
 
-    // expose only once
+    function toggleSummaryModal(groupedHtml, forceShow) {
+      var modal = document.getElementById('hud-summary-modal');
+      var grid = document.getElementById('summary-grid-container');
+      if (!modal || !grid) return;
+      if (groupedHtml !== null && groupedHtml !== undefined) {
+        grid.innerHTML = groupedHtml;
+      }
+      if (forceShow === true) {
+        modal.classList.add('visible');
+      } else if (forceShow === false) {
+        modal.classList.remove('visible');
+      } else {
+        modal.classList.toggle('visible');
+      }
+    }
+
     if (!window.__dropProtocolBound) {
       window.clearTargets = clearTargets;
+      window.clearAllPins = clearAllPins;
       window.addPulseMarker = addPulseMarker;
       window.setView = flyToCoords;
+      window.startTargetScan = startTargetScan;
+      window.resetToWorld = resetToWorld;
+      window.showHudBanners = showHudBanners;
+      window.hideHudBanners = hideHudBanners;
+      window.showHintCard = showHintCard;
+      window.hideHintCard = hideHintCard;
+      window.triggerDecoyBounce = triggerDecoyBounce;
+      window.toggleSummaryModal = toggleSummaryModal;
       window.__dropProtocolBound = true;
     }
   </script>
 </body>
+
 </html>
